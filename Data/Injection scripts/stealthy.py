@@ -9,7 +9,7 @@ TARGET_APPIDS = [0x0003, 0x0004, 0x0006]
 BURST_SIZE = 4       # Packets per burst
 STAGGER_DELAY = 33.3  # Seconds between different APPID bursts
 VLAN_PRIORITY = 0
-VLAN_ID = 0
+VLAN_ID = 4
 
 MY_MAC = get_if_hwaddr(INTERFACE)
 
