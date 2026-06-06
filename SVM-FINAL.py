@@ -22,20 +22,21 @@ warnings.filterwarnings('ignore')
 # 1. Configuration & Pathing
 # =============================================================================
 
-DATA_DIR = r"C:\Users\ali.kamran\OneDrive - VINCI Energies\Desktop\Data\Preprocessed files"
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data', 'xlsx')
 
 # =============================================================================
 # 2. Data Loading
 # =============================================================================
 print(f"Loading Excel datasets from: {DATA_DIR} ...")
 
-train_df = pd.read_excel(os.path.join(DATA_DIR, 'benign-preprocessed.xlsx'))
-benign_test_df = pd.read_excel(os.path.join(DATA_DIR, 'benign-test-preprocessed.xlsx'))
+train_df = pd.read_excel(os.path.join(DATA_DIR, 'benign-training-preprocessed.xlsx'))
+benign_test_df = pd.read_excel(os.path.join(DATA_DIR, 'bening-testing-preprocessed.xlsx'))
 
 attacks = {
     'Naive': pd.read_excel(os.path.join(DATA_DIR, 'naive-preprocessed.xlsx')),
     'Stealthy': pd.read_excel(os.path.join(DATA_DIR, 'stealthy-preprocessed.xlsx')),
-    'SSAware': pd.read_excel(os.path.join(DATA_DIR, 'ssaware-preprocessed.xlsx'))
+    'SSAware': pd.read_excel(os.path.join(DATA_DIR, 'ss-aware-preprocessed.xlsx'))
 }
 
 # =============================================================================
