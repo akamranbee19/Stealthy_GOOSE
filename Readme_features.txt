@@ -22,7 +22,7 @@ Pipeline Overview
 
 Expected data flow:
 
-- Input PCAP: `data/pcap/naive.pcapng`
+- Input PCAP: `data/pcap-files/naive.pcapng`
 - Raw Excel: `data/xlsx/naive-raw.xlsx`
 - Preprocessed Excel: `data/xlsx/naive-preprocessed.xlsx`
 
@@ -39,15 +39,19 @@ If a packet has `vlan_pcp == 0`, it is treated as malicious; otherwise it is tre
 Requirements
 ------------
 
-This pipeline installs dependencies from the repository root using `requirements.txt`.
+This pipeline is designed to run with Python 3.10.11.
 
-Setup and Execution
--------------------
-
-Step 1 - Create and activate the virtual environment from the repository root:
+Install Python 3.10.11 and then create the virtual environment from the repository root:
 
 ```powershell
-python -m venv .\venv
+py -3.10 -m venv .\venv
+.\venv\Scripts\activate
+```
+
+If you need to force the exact 3.10.11 interpreter, use the full path to that Python executable:
+
+```powershell
+C:\Path\To\Python310\python.exe -m venv .\venv
 .\venv\Scripts\activate
 ```
 
@@ -57,16 +61,24 @@ Step 2 - Install dependencies:
 pip install -r requirements.txt
 ```
 
-Step 3 - Convert the PCAP file to raw Excel format:
+Step 3 - Convert all PCAP files to raw Excel format from the repository root:
 
 ```powershell
-python scripts/pcap_parser.py data/pcap/naive.pcapng data/xlsx/naive-raw.xlsx
+mkdir .\data\xlsx
+Get-ChildItem .\data\pcap-files\*.pcapng | ForEach-Object {
+    $out = "data/xlsx/$($_.BaseName)-raw.xlsx"
+    python Feature_extraction_pipeline\pcap_parser.py $_.FullName $out
+}
 ```
 
-Step 4 - Extract Lahza et al. features into the preprocessed file:
+Step 4 - Extract Lahza et al. features for all raw Excel files:
 
 ```powershell
-python scripts/extract_features.py --in data/xlsx/naive-raw.xlsx --out data/xlsx/naive-preprocessed.xlsx
+Get-ChildItem .\data\xlsx\*-raw.xlsx | ForEach-Object {
+    $base = $_.BaseName -replace '-raw$',''
+    $out = "data/xlsx/$base-preprocessed.xlsx"
+    python Feature_extraction_pipeline\extract_features.py --in $_.FullName --out $out
+}
 ```
 
 Running the SVM evaluation
