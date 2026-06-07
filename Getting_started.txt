@@ -1,36 +1,34 @@
 Feature Extraction Pipeline
 ===========================
+This folder contains the scripts used to convert IEC 61850 GOOSE packet captures into preprocessed feature sets for the SVM classifier.
 
-This folder contains the scripts used to convert IEC 61850 GOOSE packet captures into a preprocessed feature set for the SVM classifier.
+The pipeline must be run for all five captures:
+- `benign-training.pcapng`
+- `benign-testing.pcapng`
+- `naive.pcapng`
+- `stealthy.pcapng`
+- `ssaware.pcapng`
 
-The final preprocessed file is:
+The resulting preprocessed files contain the sliding-window features proposed by Lahza et al.:
 
-- `data/xlsx/naive-preprocessed.xlsx`
-
-It contains the features proposed by Lahza et al. in:
-
-https://www.sciencedirect.com/science/article/pii/S1874548216301688
+> H. Lahza, K. Radke, and E. Foo, "Applying domain-specific knowledge to construct features for detecting distributed denial-of-service attacks on the GOOSE and MMS protocols," International Journal of Critical Infrastructure Protection, 2018. https://doi.org/10.1016/j.ijcip.2017.12.002
 
 The extracted features correspond to Table 4 in that paper.
 
 Pipeline Overview
 -----------------
-
 1. `pcap_parser.py`: reads a GOOSE PCAP (`.pcapng`) and writes a raw Excel file containing parsed GOOSE fields, timing, length, and VLAN PCP labels.
 2. `extract_features.py`: reads the raw Excel file and computes the 11 Lahza et al. sliding-window features for each GOOSE stream.
-3. `SVM-FINAL.py`: consumes the preprocessed Excel file to train and evaluate the One-Class SVM detector.
+3. `SVM-FINAL.py`: consumes the five preprocessed Excel files to train and evaluate the One-Class SVM detector.
 
-Expected data flow:
-
-- Input PCAP: `data/pcap-files/naive.pcapng`
-- Raw Excel: `data/xlsx/naive-raw.xlsx`
-- Preprocessed Excel: `data/xlsx/naive-preprocessed.xlsx`
+Expected data flow (repeated for each capture):
+- Input PCAP:        `data/pcap-files/<name>.pcapng`
+- Raw Excel:         `data/xlsx/<name>-raw.xlsx`
+- Preprocessed Excel:`data/xlsx/<name>-preprocessed.xlsx`
 
 Labeling
 --------
-
 The raw conversion uses the VLAN PCP field to label packets. In this dataset:
-
 - `label = 1` indicates attack traffic
 - `label = 0` indicates benign traffic
 
@@ -38,10 +36,9 @@ If a packet has `vlan_pcp == 0`, it is treated as malicious; otherwise it is tre
 
 Requirements
 ------------
-
 This pipeline is designed to run with Python 3.10.11.
 
-Install Python 3.10.11 and then create the virtual environment from the repository root:
+Step 1 - Create the virtual environment from the repository root:
 
 ```powershell
 py -3.10 -m venv .\venv
@@ -81,34 +78,19 @@ Get-ChildItem .\data\xlsx\*-raw.xlsx | ForEach-Object {
 }
 ```
 
-Running the SVM evaluation
---------------------------
-
-`SVM-FINAL.py` loads preprocessed datasets from its hard-coded `DATA_DIR` path. Before running it, update the `DATA_DIR` constant in `SVM-FINAL.py` so it points to the directory containing:
-
-- `benign-preprocessed.xlsx`
-- `benign-test-preprocessed.xlsx`
+After these steps, `data/xlsx/` should contain the following five preprocessed files:
+- `benign-training-preprocessed.xlsx`
+- `benign-testing-preprocessed.xlsx`
 - `naive-preprocessed.xlsx`
 - `stealthy-preprocessed.xlsx`
 - `ssaware-preprocessed.xlsx`
 
-Then run:
+Running the SVM evaluation
+--------------------------
+`SVM-FINAL.py` loads the preprocessed datasets from its hard-coded `DATA_DIR` path. Before running it, update the `DATA_DIR` constant so it points to the `data/xlsx/` directory containing the five files listed above.
 
-```powershell
-python ..\SVM-FINAL.py
-```
-
-(if you execute from the `Feature_extraction_pipeline` folder) or:
+Then run from the repository root:
 
 ```powershell
 python SVM-FINAL.py
 ```
-
-from the repository root.
-
-Notes
------
-
-- `extract_features.py` expects the raw Excel file to contain `EpochArrivalTime`, `Length`, `stNum`, `sqNum`, and `datSet`.
-- `pcap_parser.py` uses PyShark to parse GOOSE packets and extract the raw frame bytes required for VLAN PCP labeling.
-- The feature extraction pipeline is intended to create the dataset used by the main SVM evaluation script.
