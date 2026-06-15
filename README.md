@@ -39,7 +39,7 @@ This dataset provides:
 | ABB REF615 | Protection IED (publisher / subscriber) |
 | Siemens SIPROTEC 5 (x2) | Protection IEDs (publisher / subscriber) |
 | Hirschmann RSP25 managed switch | VLAN segmentation and SPAN port mirroring |
-| Monitoring PC | Packet capture (Wireshark / Scapy) and IDS execution |
+| Monitoring PC | frame capture (Wireshark / Scapy) and IDS execution |
 
 Cross-vendor GOOSE communication is configured by exchanging SCD (Substation Configuration Description) files between ABB PCM600 and Siemens DIGSI 5. The monitoring PC captures all GOOSE traffic via the SPAN port.
 
@@ -49,9 +49,9 @@ Cross-vendor GOOSE communication is configured by exchanging SCD (Substation Con
 
 The `Data/` folder contains pcap files recorded on the physical testbed, covering benign GOOSE traffic and all three attack categories. All traffic originates from real IED hardware.
 
-The preprocessed Excel files (one per capture) are derived from these pcaps using the feature extraction scripts included in the project. All three attack datasets share the same packet budget of 144 injected attack packets, enabling direct comparison across attack levels. The feature schema follows Table 4 in Lahza et al. (2018); see the [Citation](#citation) section below.
+The preprocessed Excel files (one per capture) are derived from these pcaps using the feature extraction scripts included in the project. All three attack datasets share the same frame budget of 144 injected attack frames, enabling direct comparison across attack levels. The feature schema follows Table 4 in Lahza et al. (2018); see the [Citation](#citation) section below.
 
-| Dataset | Total Packets | Normal | Attack | Duration (s) |
+| Dataset | Total frames | Normal | Attack | Duration (s) |
 |---|---|---|---|---|
 | Benign (training) | 3,736 | 3,736 | 0 | 1201 |
 | Benign (testing) | 3,597 | 3,597 | 0 | 1151 |
@@ -67,7 +67,7 @@ Three GOOSE spoofing attack categories are captured, generated using Python scri
 
 ### Level 1 — Naive Attack
 
-Injects GOOSE frames with randomly chosen `stNum` and `sqNum` values. Within each injected burst, `stNum` remains fixed while `sqNum` is incremented, mimicking the normal GOOSE retransmission pattern. Because `stNum` is not derived from the observed legitimate stream, injected packets will almost certainly mismatch the current publisher state, making this attack trivially detectable by any stateful monitor.
+Injects GOOSE frames with randomly chosen `stNum` and `sqNum` values. Within each injected burst, `stNum` remains fixed while `sqNum` is incremented, mimicking the normal GOOSE retransmission pattern. Because `stNum` is not derived from the observed legitimate stream, injected frames will almost certainly mismatch the current publisher state, making this attack trivially detectable by any stateful monitor.
 
 ### Level 2 — Stealthy Attack
 
@@ -75,7 +75,7 @@ Injects GOOSE frames with randomly chosen `stNum` and `sqNum` values. Within eac
 
 ### Level 3 — Substation Aware Attack
 
-Continuously monitors the live GOOSE stream and injects frames with `stNum` and `sqNum` values matched to the current legitimate sequence, introducing only a small delay. Injected packets overlap temporally and numerically with benign switching events, making them geometrically indistinguishable from normal state transitions in the feature space used by the IDS.
+Continuously monitors the live GOOSE stream and injects frames with `stNum` and `sqNum` values matched to the current legitimate sequence, introducing only a small delay. Injected frames overlap temporally and numerically with benign switching events, making them geometrically indistinguishable from normal state transitions in the feature space used by the IDS.
 
 ---
 
