@@ -105,7 +105,7 @@ python SVM-FINAL.py
 
 If you use this dataset in your research, please cite the thesis:
 
-> A. Kamran, *Testing and Cybersecurity of IEC 61850 Enabled Substations*, Master's thesis, KTH Royal Institute of Technology, Division of Electric Power and Energy Systems, Stockholm, Sweden, 2025.
+> A. Kamran, *Testing and Cybersecurity of IEC 61850 Enabled Substations*, Master's thesis, KTH Royal Institute of Technology, Division of Electric Power and Energy Systems, Stockholm, Sweden, 2026.
 
 The sliding-window feature extraction methodology follows:
 
